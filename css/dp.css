@@ -1,0 +1,113 @@
+/* =====================================================================
+   App do DP · ajustes sobre o visual do app Gestão de Pessoas (base-rh.css)
+   Letras menores, visual corporativo e limpo; cores do setor sucroenergético
+   (verde-cana, âmbar do açúcar, terracota) sem excesso de azul.
+   ===================================================================== */
+:root{ --cana:#2e8a57; --acucar:#e9a23b; --terra:#c4683a; --etanol:#1f8a8a; --bagaco:#8a7a2e; }
+html,body{font-size:14px}
+.lateral{background:linear-gradient(180deg,#10213f 0%,#132f45 55%,#174536 100%)}
+.lat-tit b{font-size:14px}
+.pagina h2.tit{font-size:19px;margin:2px 0 4px;letter-spacing:-.01em}
+.pagina p.sub{color:var(--mut);margin:0 0 16px;font-size:13px}
+.vazio{padding:28px 16px;text-align:center;color:var(--mut);font-size:13.5px;background:var(--card);border:1px dashed var(--line);border-radius:12px}
+
+/* capa do Início (só a imagem do DP) */
+.dp-capa{position:relative;border-radius:18px;overflow:hidden;min-height:calc(100vh - 60px);display:flex;align-items:flex-end;box-shadow:var(--sombra)}
+.dp-capa svg.arte{position:absolute;inset:0;width:100%;height:100%}
+.dp-capa .tx{position:relative;z-index:1;width:100%;padding:30px 30px 36px;color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center}
+.dp-capa .tx img{width:190px;max-width:58%;background:#fff;border-radius:12px;padding:7px 13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.dp-capa h1{margin:16px 0 2px;font-size:30px;color:#fff;letter-spacing:-.01em}
+.dp-capa p{margin:0;font-size:14px;opacity:.85}
+.dp-capa .faixa{width:120px;height:4px;border-radius:4px;margin-top:14px;background:linear-gradient(90deg,var(--cana),var(--acucar),var(--terra))}
+@media (max-width:700px){.dp-capa{min-height:calc(100vh - 90px);border-radius:14px}.dp-capa h1{font-size:24px}}
+
+/* cabeçalho das páginas: limpo, só título e ações essenciais */
+.pg-cab{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pg-cab .t{flex:1;min-width:220px}
+.pg-cab .t h2{margin:0;font-size:19px}
+.pg-cab .t p{margin:2px 0 0;color:var(--mut);font-size:12.5px}
+.pg-cab .acoes{display:flex;gap:6px;flex-wrap:wrap}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filtros input,.filtros select{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card);font-size:13px}
+.filtros input[type=search]{min-width:200px}
+
+/* números clicáveis */
+.kpis.dp{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpis.dp .kpi{padding:11px 13px;border-top-width:3px;font:inherit;color:inherit}
+.kpis.dp .kpi b{font-size:23px;margin-top:3px}
+.kpis.dp .kpi.sel{outline:2px solid var(--cor);outline-offset:-2px}
+
+/* tabelas */
+.tb-env{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:auto;box-shadow:var(--sombra)}
+table.tb{width:100%;border-collapse:collapse;font-size:13px}
+table.tb th{position:sticky;top:0;background:#f5f7fb;text-align:left;font-weight:600;color:var(--mut);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.tb td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tb tr.clic{cursor:pointer}
+table.tb tr.clic:hover td{background:rgba(46,138,87,.06)}
+table.tb td.num,table.tb th.num{text-align:right;white-space:nowrap}
+table.tb td.mat{font-variant-numeric:tabular-nums;color:var(--mut);white-space:nowrap}
+table.tb tfoot td{font-weight:700;background:#f5f7fb}
+@media (prefers-color-scheme: dark){table.tb th,table.tb tfoot td{background:#1c2740}}
+
+/* etiquetas de status */
+.st{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.st.pendente{background:#fff4e0;color:#8a5a00}
+.st.enviado{background:#e6f0fb;color:#24427c}
+.st.pago{background:#e3f2e9;color:#1d5c3a}
+.st.nao_se_aplica{background:#eceff4;color:#5d6a85}
+.st.vencido{background:#fde8e6;color:#a3301c}
+.st.hoje{background:#fde8e6;color:#a3301c}
+.st.conferir{background:#fff4e0;color:#8a5a00}
+.st.ok{background:#e3f2e9;color:#1d5c3a}
+.st.respondido{background:#e3f2e9;color:#1d5c3a}
+.st.em_analise{background:#e6f0fb;color:#24427c}
+.st.cancelado{background:#eceff4;color:#5d6a85}
+
+/* Central do DP */
+.cent-grupo{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;box-shadow:var(--sombra);overflow:hidden}
+.cent-grupo>header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);border-left:4px solid var(--cor,var(--cana))}
+.cent-grupo>header b{flex:1;font-size:14px}
+.cent-grupo>header small{color:var(--mut);font-size:12px}
+.cent-it{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.cent-it:last-child{border-bottom:0}
+.cent-it .tx{flex:1;min-width:0;cursor:pointer}
+.cent-it .tx b{display:block;font-weight:600}
+.cent-it .tx span{display:block;color:var(--mut);font-size:12px;margin-top:1px}
+.cent-it .btn{flex:none}
+@media (max-width:640px){.cent-it{flex-wrap:wrap}.cent-it .tx{flex-basis:100%}}
+
+/* formulários em modal */
+.form-g{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.form-g .campo{margin:0}
+.form-g .campo.l2{grid-column:1/-1}
+.campo textarea{padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-height:76px;resize:vertical}
+.campo input,.campo select{padding:9px 11px}
+@media (max-width:640px){.form-g{grid-template-columns:1fr}}
+.anexos{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.anexos a,.anexos .an{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.aviso-conf{background:#fff4e0;color:#6e4700;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:12px}
+@media (prefers-color-scheme: dark){.aviso-conf{background:#3a2c10;color:#f2cf8a}}
+
+/* lista de pessoas (quem está por trás do número) */
+.pes-l{display:flex;flex-direction:column}
+.pes-l .p{display:grid;grid-template-columns:70px 1fr;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:13px}
+.pes-l .p small{grid-column:2;color:var(--mut);font-size:12px;margin-top:-4px}
+
+/* exportar */
+.exp-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 12px;margin:8px 0 12px}
+.exp-cols label{display:flex;gap:7px;align-items:center;font-size:13px}
+.em-breve{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px;max-width:640px}
+.em-breve h2{margin:0 0 6px;font-size:18px}
+.em-breve p{color:var(--mut);margin:0;font-size:13.5px;line-height:1.5}
+
+/* celular: menos poluído */
+@media (max-width:640px){
+  .pg-cab .t p{display:none}
+  .kpis.dp{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px}
+  .kpis.dp .kpi{padding:7px 8px;border-radius:10px}
+  .kpis.dp .kpi small{font-size:10px;letter-spacing:0}
+  .kpis.dp .kpi b{font-size:18px!important;margin-top:1px}
+  table.tb{font-size:12.5px}
+  table.tb td,table.tb th{padding:7px 7px}
+  table.tb .so-pc{display:none}
+}
