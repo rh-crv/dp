@@ -11,7 +11,7 @@ const D = window.DP, { sb, E, $, $$, esc, normal, brD, hoje, somaDias, dias, fMa
 /* ---------- regras ---------- */
 const MOT = () => D.cfg('motivos_afastamento', { DC:'Doença comum', AT:'Acidente de trabalho', APOS:'Aposentadoria', PRESO:'Preso', LM:'Licença-maternidade' });
 const motNome = c => c ? (MOT()[c] ? `${c} · ${MOT()[c]}` : c) : '';
-const DIAS_NOTIF = () => { const v = D.cfg('dias_entre_notificacoes', null); return (v === null || v === '' || isNaN(+v)) ? null : +v; };
+const DIAS_NOTIF = () => null;   // as notificações agora ficam no controle único (painel Desistentes / Notificações)
 const emNotif = a => !!(a.em_notificacao || a.notif1);
 function status(a, h = hoje()){
   if (a.encerrado_em) return 'Encerrado';
@@ -41,7 +41,7 @@ let L = [], Q = {}, carregado = 0;
 async function carregar(forcar){
   if (D.ehGestor()) { const { data, error } = await sb.rpc('dp_afastados_gestor'); if (error) throw error; L = (data || []).map(x => Object.assign({ id:x.mat }, x)); return L; }
   if (!forcar && L.length && Date.now() - carregado < 5000) return L;
-  const [{ data, error }, P] = await Promise.all([sb.from('dp_afastamentos').select('*').order('nome'), D.pessoas()]);
+  const [{ data, error }, P] = await Promise.all([sb.from('dp_afastamentos').select('*').order('nome'), D.pessoas(), window.DP_Q.carregar()]);
   if (error) throw error; Q = Object.fromEntries(P.lista.map(p => [p.mat, p]));
   L = (data || []).map(a => { const q = Q[a.mat]; return Object.assign(a, { nomeQ:q ? q.nome : a.nome, funcaoQ:q ? q.funcao : a.funcao, q }); });
   L.forEach(a => { a.nome = a.nomeQ || a.nome; a.funcao = a.funcaoQ || a.funcao; });
@@ -72,7 +72,8 @@ async function tela(pg, aba){
   const notifV = X.filter(a => { const p = proxNotif(a); return p && p <= somaDias(h, 2); });
   const AL = [[C[1].lista, 'retorno(s) vencido(s)', 'Retornos vencidos'], [C[4].lista, 'benefício(s) INSS vencido(s)', 'Benefício INSS vencido'], [pericias, 'perícia(s) nos próximos 7 dias', 'Perícias nos próximos 7 dias'], [notifV, 'notificação(ões) vencendo ou vencida(s)', 'Notificações vencendo']].filter(x => x[0].length);
   const sel = (id, k, lista, rot) => `<select data-fl="${k}" aria-label="${rot}"><option value="">${rot}</option>${lista.map(v => `<option value="${esc(v)}" ${F[k] === String(v) ? 'selected' : ''}>${esc(k === 'motivo' ? motNome(v) : v)}</option>`).join('')}</select>`;
-  const ABAS = [['ativos', 'Afastados ativos'], ['retornos', 'Retornos'], ['processos', 'Processos e perícias'], ['notificacoes', 'Notificações'], ['historico', 'Histórico/encerrados']];
+  const CF = conferirQ();
+  const ABAS = [['ativos', 'Afastados ativos'], ['retornos', 'Retornos'], ['processos', 'Processos e perícias'], ['notificacoes', 'Notificações'], ['conferir', `A conferir${CF.length ? ' (' + CF.length + ')' : ''}`], ['historico', 'Histórico/encerrados']];
   pg.innerHTML = `<div class="pg-cab"><div class="t"><h2>Afastados – acompanhamento</h2><p>Status e dias calculados pelo app. Base: planilha importada + lançamentos do DP, ligados ao Quadro pela matrícula.</p></div>
     <div class="acoes">${eq ? '<button class="btn peq prim" id="af-novo">+ Novo afastamento</button>' : ''}</div></div>
     ${AL.length ? `<div class="af-alertas">${AL.map((x, i) => `<button class="af-al" data-al="${i}">⚠ <b>${x[0].length}</b> ${esc(x[1])}</button>`).join('')}</div>` : ''}
@@ -94,6 +95,17 @@ async function tela(pg, aba){
   const nv = $('#af-novo', pg); if (nv) nv.onclick = () => formAfast(null, () => { carregado = 0; tela(pg, aba); });
   corpoAba($('#af-corpo', pg), aba, X, XT, () => { carregado = 0; tela(pg, aba); });
   vigiar(() => { if (document.body.contains(pg)) tela(pg, aba); });
+}
+/* "A conferir" contra o Quadro do DP (quem manda em "está ou não está afastado" é o Quadro) */
+function conferirQ(){
+  const QD = window.DP_Q.Q || {}, ult = window.DP_Q.ultimo(); if (!ult) return [];
+  const ab = L.filter(a => !a.encerrado_em), abM = new Set(ab.map(a => a.mat)), out = [];
+  Object.values(QD).filter(window.DP_Q.ehAfastado).forEach(p => { if (!abM.has(p.mat)) out.push({ tipo:'sem', mat:p.mat, nome:p.nome, txt:`Afastado no Quadro sem acompanhamento · ${p.funcao || ''}${p.gestao ? ' · ' + p.gestao : ''}` }); });
+  ab.forEach(a => { const q = QD[a.mat];
+    if (!q) out.push({ tipo:'fora', mat:a.mat, nome:a.nome, a, txt:'Não está entre ativos e afastados do Quadro · desligado?' });
+    else if (!window.DP_Q.ehAfastado(q) && a.manter_ate_import !== ult.id) out.push({ tipo:'ativo', mat:a.mat, nome:a.nome, a, txt:`No Quadro: ${q.situacao} · ${q.departamento}${a.motivo ? ' · motivo ' + a.motivo : ''}${a.data_retorno ? ' · retorno previsto ' + brD(a.data_retorno) : ''}` });
+    if (q && !a.gestao_origem && !q.gestao) out.push({ tipo:'semorig', mat:a.mat, nome:a.nome, a, txt:'Gestão/frente vazia no Quadro: informe a área de origem na ficha (Editar)' }); });
+  return out;
 }
 function contar(X, f){ const o = {}; X.forEach(a => { const k = f(a); o[k] = (o[k] || 0) + 1; }); return Object.entries(o).sort((a, b) => b[1] - a[1]); }
 function grafico(tit, pares, id, rot){ const max = Math.max(1, ...pares.map(p => p[1])); const cores = ['#2e8a57', '#e9a23b', '#c4683a', '#1f8a8a', '#7a4fb5', '#8a7a2e', '#4a6a8a'];
@@ -135,10 +147,18 @@ function corpoAba(el, aba, X, XT, recarregar){
       <h3 class="af-h3" style="--cor:#2e8a57">Reabilitação</h3>${tab(re, [cMat, cNome, cDep, cMot, cAf, cSt], 'Ninguém em reabilitação.')}
       <h3 class="af-h3" style="--cor:#7a4fb5">Perícia agendada</h3>${tab(pe, [cMat, cNome, ['Perícia', a => `<b>${esc(brD(a.pericia_data))}</b>${a.pericia_data < h ? ' <span class="st vencido">passou</span>' : ''}`], cMot, cSt], 'Nenhuma perícia agendada.')}
       <h3 class="af-h3" style="--cor:#a1341f">Benefício INSS vencido – verificar</h3>${tab(iv, [cMat, cNome, ['Benefício até', a => esc(brD(a.inss_ate))], cMot, cRet, cSt], 'Nenhum benefício vencido.')}`; }
-  if (aba === 'notificacoes') { const N = XT.filter(a => emNotif(a)).sort((a, b) => (!!a.encerrado_em - !!b.encerrado_em) || D.ordenaNome(a, b)); const dn = DIAS_NOTIF();
-    el.innerHTML = `${dn == null ? '<div class="aviso-conf">Os "dias entre notificações" ainda não foram preenchidos na Administração: a próxima notificação não é calculada e não gera alerta.</div>' : `<p class="sub">Próxima notificação prevista ${dn} dias após a anterior.</p>`}
-      ${tab(N, [cMat, cNome, ['1ª', a => esc(brD(a.notif1))], ['2ª', a => esc(brD(a.notif2))], ['3ª', a => esc(brD(a.notif3))], ['Próxima prevista', a => { const p = proxNotif(a); return p ? `${esc(brD(p))}${p < h ? ' <span class="st vencido">vencida</span>' : p <= somaDias(h, 2) ? ' <span class="st hoje">vencendo</span>' : ''}` : '—'; }],
-        ['Situação', a => esc(NOTIF_SIT[a.notif_situacao] || 'Aguardando retorno') + (a.encerrado_em ? ` <span class="st pago">encerrado ${esc(brD(a.encerrado_em))}</span>` : '')]], 'Ninguém em notificação.')}`; }
+  if (aba === 'notificacoes') { el.innerHTML = '<div class="spinner"></div>'; window.DP_DS.tabelaAfastados(el); return; }
+  if (aba === 'conferir') { const CF = conferirQ(), ult = window.DP_Q.ultimo();
+    const G = [['sem', 'Afastado no Quadro sem acompanhamento', '#d4573f'], ['ativo', 'Verificar: retornou? (afastado no painel e Ativo no Quadro)', '#e9a23b'], ['fora', 'Verificar: desligado? (afastado no painel e fora do Quadro)', '#a1341f'], ['semorig', 'A conferir – sem área de origem (Gestão/frente vazia)', '#8a7a2e']];
+    el.innerHTML = `${ult ? `<p class="sub">Comparado com o Quadro do DP de ${esc(brD(ult.data_ref))}. Ao reimportar o Quadro, tudo é recalculado.</p>` : '<div class="aviso-conf">Importe o Quadro de colaboradores no app do DP para fazer esta conferência.</div>'}
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="btn peq borda" id="cq-exp">Exportar "A conferir"</button></div>
+      ${G.map(([k, t, cor]) => { const Lk = CF.filter(x => x.tipo === k).sort(D.ordenaNome); return `<h3 class="af-h3" style="--cor:${cor}">${t} (${Lk.length})</h3>${Lk.length ? `<div class="tb-env"><table class="tb"><tbody>${Lk.map(x => `<tr><td class="mat">${esc(fMat(x.mat))}</td><td><b>${esc(x.nome)}</b><div style="color:var(--mut);font-size:12px">${esc(x.txt)}</div></td><td style="white-space:nowrap">${eq ? (k === 'sem' ? `<button class="btn peq prim" data-ia="${esc(x.mat)}">Iniciar acompanhamento</button>` : k === 'ativo' ? `<button class="btn peq borda" data-ret="${esc(x.a.id)}">Registrar retorno</button> <button class="btn peq borda" data-man="${esc(x.a.id)}">Manter afastado – Quadro a corrigir</button>` : k === 'fora' ? `<button class="btn peq borda" data-dsl="${esc(x.a.id)}">Encerrar como desligado</button>` : '') : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="sub">Nenhum.</p>'}`; }).join('')}`;
+    $('#cq-exp', el).onclick = () => D.exportar({ titulo:'Afastados – a conferir', linhas:CF.map(x => ({ mat:x.mat, nome:x.nome, txt:x.txt })), colunas:[{ k:'mat', t:'Matrícula', f:fMat }, { k:'nome', t:'Nome' }, { k:'txt', t:'O que conferir' }] });
+    $$('[data-ia]', el).forEach(b => b.onclick = () => formAfast(null, recarregar, b.dataset.ia));
+    $$('[data-dsl]', el).forEach(b => b.onclick = () => encerrar(L.find(a => a.id === b.dataset.dsl), 'desligado', recarregar));
+    $$('[data-man]', el).forEach(b => b.onclick = async () => { const a = L.find(x => x.id === b.dataset.man), u = window.DP_Q.ultimo(); if (!u) return;
+      const { error } = await sb.from('dp_afastamentos').update({ manter_ate_import:u.id, atualizado_por:E.perfil.nome }).eq('id', a.id); if (error) return toast(traduzErro(error), true);
+      await hist(a, 'edicao', `Mantido afastado – Quadro de ${brD(u.data_ref)} a corrigir (volta a aparecer se o próximo Quadro continuar igual)`); toast('Mantido afastado. Sai da conferência até a próxima importação do Quadro.'); recarregar(); }); }
   if (aba === 'historico') { const H = [...XT.filter(a => a.encerrado_em)].sort((a, b) => a.encerrado_em < b.encerrado_em ? 1 : -1);
     el.innerHTML = tab(H, [cMat, cNome, cDep, cMot, cAf, ['Encerrado em', a => esc(brD(a.encerrado_em))], ['Tipo', a => esc(ENC_TIPO[a.encerrado_tipo] || '')], ['Dias', a => String(diasAfast(a) ?? ''), 'num']], 'Nenhum afastamento encerrado.'); }
   const ligar = () => { $$('tr[data-f]', el).forEach(tr => tr.onclick = ev => { if (ev.target.closest('button')) return; ficha(tr.dataset.f); });
@@ -182,7 +202,7 @@ async function ficha(mat){
         ${a.observacao ? `<p style="margin:10px 0 0;white-space:pre-wrap"><b>Observação:</b> ${esc(a.observacao)}</p>` : ''}
         ${(a.a_conferir || []).length ? `<div class="aviso-conf" style="margin-top:10px"><b>A conferir:</b><br>${a.a_conferir.map(esc).join('<br>')}</div>` : ''}</section>
     </div>
-    ${eq ? `<div class="fc-acoes">${!a.encerrado_em ? `<button class="btn peq borda" id="fc-ed">Editar</button><button class="btn peq borda" id="fc-pro">Registrar prorrogação</button><button class="btn peq borda" id="fc-ret">Registrar retorno</button><button class="btn peq borda" id="fc-des">Encerrar por desligamento</button>` : `<button class="btn peq borda" id="fc-reab">Reabrir</button>`}<button class="btn peq borda" id="fc-not">Notificações</button></div>
+    ${eq ? `<div class="fc-acoes">${!a.encerrado_em ? `<button class="btn peq borda" id="fc-ed">Editar</button><button class="btn peq borda" id="fc-pro">Registrar prorrogação</button><button class="btn peq borda" id="fc-ret">Registrar retorno</button><button class="btn peq borda" id="fc-des">Encerrar por desligamento</button>` : `<button class="btn peq borda" id="fc-reab">Reabrir</button>`}${!a.encerrado_em ? '<button class="btn peq borda" id="fc-not">Iniciar notificação (não retornou)</button>' : ''}</div>
       <div class="campo" style="margin-top:12px"><label>Nova observação (com anexos: atestado, carta do INSS, notificações)</label><textarea id="fc-obs"></textarea><input type="file" id="fc-arq" multiple accept=".pdf,image/*,.doc,.docx"><button class="btn peq prim" id="fc-salva" style="margin-top:6px;align-self:flex-start">Salvar observação</button></div>` : ''}
     ${anexos.length ? `<h4>Anexos</h4><div class="anexos">${anexos.map((x, i) => `<a href="#" data-ax="${i}">📎 ${esc(x.nome)}</a>`).join('')}</div>` : ''}
     <h4>Histórico completo</h4>
@@ -195,7 +215,8 @@ async function ficha(mat){
       if (!eq) return;
       const b = (id, fn) => { const el = $('#' + id, m); if (el) el.onclick = fn; };
       b('fc-ed', () => formAfast(a, depois)); b('fc-pro', () => registrarProrrogacao(a, depois)); b('fc-ret', () => registrarRetorno(a, depois));
-      b('fc-des', () => encerrar(a, 'desligado', depois)); b('fc-not', () => formNotif(a, depois));
+      b('fc-des', () => encerrar(a, 'desligado', depois));
+      b('fc-not', () => { fecharModal(); window.DP_DS.iniciar({ mat:a.mat, nome:a.nome, funcao:a.funcao, origem_caso:'afastamento', afast_id:a.id, data_falta:a.data_retorno || '' }, depois); });
       b('fc-reab', async () => { if (!confirm('Reabrir este afastamento?')) return; const { error } = await sb.from('dp_afastamentos').update({ encerrado_em:null, encerrado_tipo:null, atualizado_por:E.perfil.nome }).eq('id', a.id);
         if (error) return toast(traduzErro(error).includes('duplicate') ? 'Já existe outro afastamento aberto para esta matrícula.' : traduzErro(error), true); await hist(a, 'reabertura', 'Afastamento reaberto'); depois(); });
       b('fc-salva', async () => { const t = $('#fc-obs', m).value.trim(), fs = $('#fc-arq', m).files; if (!t && !fs.length) return toast('Escreva a observação ou escolha um anexo.', true);
@@ -208,14 +229,15 @@ async function hist(a, tipo, descricao, dados = {}, anexos = []){ const { error 
 
 /* ---------- lançar / editar ---------- */
 const CAMPOS_ED = [['motivo', 'Motivo'], ['dut', 'DUT', 'date'], ['data_afastamento', 'Data do afastamento', 'date'], ['data_retorno', 'Data de retorno', 'date'], ['inss_ate', 'Benefício INSS até', 'date'], ['atestado_texto', 'Atestado (texto)'],
-  ['pericia_data', 'Perícia agendada', 'date'], ['processo_inss', 'Nº do processo contra o INSS'], ['contato', 'Contato'], ['cpf', 'CPF'], ['setor', 'Setor'], ['departamento', 'Departamento']];
-async function formAfast(a, depois){
+  ['pericia_data', 'Perícia agendada', 'date'], ['processo_inss', 'Nº do processo contra o INSS'], ['contato', 'Contato'], ['cpf', 'CPF'], ['setor', 'Setor'], ['departamento', 'Departamento'], ['gestao_origem', 'Área de origem (Gestão/frente)']];
+async function formAfast(a, depois, preMat){
   const novo = !a; let pessoas = [];
-  if (novo) pessoas = (await D.pessoas()).lista.filter(p => p.situacao !== 'Desligado');
+  if (novo) { await window.DP_Q.carregar(); const QD = window.DP_Q.Q || {}; pessoas = Object.keys(QD).length ? Object.values(QD).map(p => ({ mat:p.mat, nome:p.nome, funcao:p.funcao, setor:p.departamento, gestao:p.gestao })).sort(D.ordenaNome) : (await D.pessoas()).lista.filter(p => p.situacao !== 'Desligado'); }
+  if (preMat) pessoas = pessoas.filter(p => p.mat === preMat);
   a = a || { sem_previsao:false };
   const mot = MOT(), set = opcoes(L, x => x.setor), dep = opcoes(L, x => x.departamento);
   abrirModal({ titulo:novo ? 'Novo afastamento' : 'Editar afastamento · ' + a.nome, largo:true, corpo:`
-    ${novo ? `<div class="campo"><label>Colaborador (do Quadro)</label><input id="fa-b" type="search" placeholder="Buscar por nome ou matrícula"><select id="fa-c" size="5" style="margin-top:6px">${pessoas.map(p => `<option value="${esc(p.mat)}">${esc(fMat(p.mat))} · ${esc(p.nome)} · ${esc(p.setor)}</option>`).join('')}</select></div>` : ''}
+    ${novo ? `<div class="campo"><label>Colaborador (do Quadro)</label><input id="fa-b" type="search" placeholder="Buscar por nome ou matrícula"><select id="fa-c" size="5" style="margin-top:6px">${pessoas.map(p => `<option value="${esc(p.mat)}" ${pessoas.length === 1 ? 'selected' : ''}>${esc(fMat(p.mat))} · ${esc(p.nome)} · ${esc(p.setor)}</option>`).join('')}</select></div>` : ''}
     <div class="form-g">
       <div class="campo"><label>Motivo</label><select id="fa-motivo">${Object.entries(mot).map(([k, v]) => `<option value="${esc(k)}" ${a.motivo === k ? 'selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('')}</select></div>
       ${CAMPOS_ED.slice(1).map(([k, t, tp]) => `<div class="campo"><label>${t}</label><input id="fa-${k}" ${tp ? `type="${tp}"` : ''} value="${esc(a[k] || '')}" ${k === 'setor' || k === 'departamento' ? `list="fa-l-${k}"` : ''}></div>`).join('')}
@@ -238,7 +260,7 @@ async function formAfast(a, depois){
         if (!r.data_afastamento) return toast('Informe a data do afastamento.', true);
         let res;
         if (novo) { const p = pessoas.find(x => x.mat === $('#fa-c', m).value); if (!p) return toast('Escolha o colaborador.', true);
-          Object.assign(r, { mat:p.mat, nome:p.nome, funcao:p.funcao, setor:r.setor, departamento:r.departamento, origem:'app' });
+          Object.assign(r, { mat:p.mat, nome:p.nome, funcao:p.funcao, setor:r.setor, departamento:r.departamento, gestao_origem:r.gestao_origem || p.gestao || null, origem:'app' });
           res = await sb.from('dp_afastamentos').insert(r).select().single();
           if (res.error) return toast(String(res.error.message).includes('dp_afast_um_aberto') ? 'Já existe um afastamento aberto para esta matrícula.' : traduzErro(res.error), true);
           await hist(res.data, 'lancamento', 'Afastamento lançado no app'); }
@@ -447,32 +469,14 @@ async function pendencias(){
 
 /* ---------- Administração (configurações dos afastados) ---------- */
 async function adminHTML(){
-  const mot = MOT(), dn = DIAS_NOTIF(), map = D.cfg('afast_setor_gestor', {});
-  const { data:af } = await sb.from('dp_afastamentos').select('setor,departamento').is('encerrado_em', null);
-  const combos = {}; (af || []).forEach(a => { const k = chaveSetor(a); combos[k] = (combos[k] || 0) + 1; }); Object.keys(map).forEach(k => combos[k] = combos[k] || 0);
-  const { data:ges } = await sb.from('perfis').select('nome,areas').eq('papel', 'gestor').eq('ativo', true);
-  const AREAS = [...new Set((ges || []).flatMap(g => (g.areas || []).filter(x => /^[ad]:/.test(x))))].sort();
-  const rot = k => k.startsWith('a:') ? k.slice(2) + ' (área inteira)' : k.slice(2).replace('|', ' › ');
-  const quem = k => (ges || []).filter(g => (g.areas || []).includes(k)).map(g => D.nomeBonito(g.nome)).join(', ');
+  const mot = MOT();
   return { html:`<h3 style="font-size:14.5px;margin:20px 0 8px">Afastados</h3>
     <div class="form-g" style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px">
-      <div class="campo"><label>Legenda de motivos (um por linha: CÓDIGO = Nome)</label><textarea id="af-mot" style="min-height:120px">${esc(Object.entries(mot).map(([k, v]) => k + ' = ' + v).join('\n'))}</textarea></div>
-      <div class="campo"><label>Dias entre notificações (vazio = não calcula nem alerta)</label><input type="number" min="1" max="120" id="af-dn" value="${dn ?? ''}">
-        <button class="btn prim" id="af-cfg" style="margin-top:10px;align-self:flex-start">Salvar motivos e dias</button></div></div>
-    <h3 style="font-size:14.5px;margin:20px 0 8px">Afastados: setor/departamento da planilha → gestor</h3>
-    <p class="sub">O gestor vê os afastados dos setores ligados às áreas dele (sem CPF, telefone, motivo e processo) e é avisado dos retornos nos próximos 15 dias.</p>
-    <div class="tb-env"><table class="tb"><thead><tr><th>Setor · departamento (planilha)</th><th class="num">Afastados</th><th>Áreas ligadas</th><th></th></tr></thead><tbody>
-      ${Object.keys(combos).sort().map(k => `<tr><td>${esc(k.replace('|', ' · '))}</td><td class="num">${combos[k]}</td><td>${(map[k] || []).length ? (map[k] || []).map(x => `<div>${esc(rot(x))}<small style="color:var(--mut)"> ${esc(quem(x))}</small></div>`).join('') : '<span class="st conferir">sem gestor</span>'}</td><td><button class="btn peq borda" data-ms="${esc(k)}">Ligar</button></td></tr>`).join('')}
-    </tbody></table></div>`, ligar: pg => {
+      <div class="campo l2"><label>Legenda de motivos (um por linha: CÓDIGO = Nome)</label><textarea id="af-mot" style="min-height:120px">${esc(Object.entries(mot).map(([k, v]) => k + ' = ' + v).join('\n'))}</textarea></div>
+      <div class="campo"><button class="btn prim" id="af-cfg" style="align-self:flex-start">Salvar motivos</button></div></div>
+    <p class="sub">O gestor vê os afastados pela Gestão/frente de origem (tabela "Gestão/frente de origem → equipes dos gestores", abaixo).</p>`, ligar: pg => {
       $('#af-cfg', pg).onclick = async () => { const m = {}; $('#af-mot', pg).value.split('\n').forEach(l => { const [k, ...v] = l.split('='); if (k && k.trim()) m[k.trim().toUpperCase()] = v.join('=').trim() || k.trim(); });
-        const d = $('#af-dn', pg).value.trim(); const rows = [{ chave:'motivos_afastamento', valor:m }, { chave:'dias_entre_notificacoes', valor:d ? +d : null }].map(r => Object.assign(r, { atualizado_por:E.perfil.nome, atualizado_em:new Date().toISOString() }));
-        const { error } = await sb.from('dp_config').upsert(rows); if (error) return toast(traduzErro(error), true); await D.carregarConfig(); toast('Salvo.'); };
-      $$('[data-ms]', pg).forEach(b => b.onclick = () => { const k = b.dataset.ms, atual = new Set(map[k] || []);
-        abrirModal({ titulo:'Ligar ' + k.replace('|', ' · '), largo:true, corpo:`<p class="sub">Marque as áreas dos gestores (as mesmas do app do RH) que veem os afastados deste setor.</p><div class="exp-cols">${AREAS.map(x => `<label title="${esc(quem(x))}"><input type="checkbox" value="${esc(x)}" ${atual.has(x) ? 'checked' : ''}> ${esc(rot(x))}</label>`).join('')}</div>`,
-          pe:'<button class="btn borda" id="ms-x">Cancelar</button><button class="btn prim" id="ms-ok">Salvar</button>', aoAbrir: m => { $('#ms-x', m).onclick = fecharModal;
-            $('#ms-ok', m).onclick = async () => { const novo = Object.assign({}, D.cfg('afast_setor_gestor', {})); const sel = $$('input:checked', m).map(i => i.value); if (sel.length) novo[k] = sel; else delete novo[k];
-              const { error } = await sb.from('dp_config').upsert({ chave:'afast_setor_gestor', valor:novo, atualizado_por:E.perfil.nome, atualizado_em:new Date().toISOString() }); if (error) return toast(traduzErro(error), true);
-              await D.carregarConfig(); fecharModal(); toast('Ligação salva.'); window.dispatchEvent(new HashChangeEvent('hashchange')); }; } }); });
+        const { error } = await sb.from('dp_config').upsert({ chave:'motivos_afastamento', valor:m, atualizado_por:E.perfil.nome, atualizado_em:new Date().toISOString() }); if (error) return toast(traduzErro(error), true); await D.carregarConfig(); toast('Salvo.'); };
     } };
 }
 

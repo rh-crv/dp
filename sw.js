@@ -1,6 +1,6 @@
 // Service worker do app do DP (escopo /dp/): guarda o esqueleto do app para abrir rápido e recebe as notificações push.
-const CACHE = 'crv-dp-v2';
-const ARQS = ['./', 'index.html', 'css/base-rh.css', 'css/dp.css', 'js/comum.js', 'js/encargos.js', 'js/afastados.js', 'js/app.js', 'js/notificacoes.js', 'config.js', 'img/logo-crv.png', 'img/icone-192.png', 'manifest.webmanifest'];
+const CACHE = 'crv-dp-v3';
+const ARQS = ['./', 'index.html', 'css/base-rh.css', 'css/dp.css', 'js/comum.js', 'js/encargos.js', 'js/quadro.js', 'js/afastados.js', 'js/desistentes.js', 'js/app.js', 'js/notificacoes.js', 'config.js', 'img/logo-crv.png', 'img/icone-192.png', 'manifest.webmanifest'];
 const CDN = /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQS).catch(() => {}))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && /^crv-dp-/.test(k)).map(k => caches.delete(k))))); self.clients.claim(); });
