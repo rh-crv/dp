@@ -7,5 +7,5 @@ window.CRV_CONFIG = {
   VAPID_PUBLICA: 'BNSqbXya2tXAIM6Zz8Da1zC6BkGQebTleB7gzUPYnYCOza53nkHd2tVQ2NC_T6fdUBZOeBVsqx37wNziw8M6c4Y',
   // dados da empresa no rodapé dos documentos (mesmo padrão das Sanções)
   EMPRESA: ['CRV INDUSTRIAL LTDA - UNIDADE CAPINÓPOLIS | CNPJ 03.937.452/0004-35', 'Rodovia MG-226, s/nº, km 63, Zona Rural, Capinópolis/MG - CEP 38.360-000', 'Telefone: (34) 3263-8100'],
-  VERSAO: '1.2.0'
+  VERSAO: '1.3.0'
 };
