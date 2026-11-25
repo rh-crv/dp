@@ -147,7 +147,7 @@ function exportar({ titulo, sub, linhas, colunas, ordenar = 'nome', rotulo = 'pe
   titulo = proibidoTitulo(titulo);
   const ass = cfg('assinantes', ['Leonardo Dias de Almeida', 'GESTÃO DE PESSOAS']);
   abrirModal({ titulo:'Exportar · ' + titulo, corpo:`<b style="font-size:13px">O que exportar</b>
-    <div class="exp-cols">${colunas.map((c, i) => `<label><input type="checkbox" data-c="${i}" checked> ${esc(c.t)}</label>`).join('')}</div>
+    <div class="exp-cols">${colunas.map((c, i) => `<label><input type="checkbox" data-c="${i}" ${c.off ? '' : 'checked'}> ${esc(c.t)}</label>`).join('')}</div>
     ${assinar ? `<div class="campo"><label>Assinatura (PDF)</label><select id="ex-ass"><option value="">Sem assinatura</option>${ass.map((a, i) => `<option value="${i}">${esc(a)}</option>`).join('')}<option value="ambos">${esc(ass.join(' e '))}</option></select></div>` : ''}
     <p style="color:var(--mut);font-size:12.5px;margin:0">${linhas.length} ${linhas.length === 1 ? 'linha' : 'linhas'} · ordem ${ordenar === 'nome' ? 'alfabética pelo nome' : 'da tela'}.</p>`,
     pe:`<button class="btn borda" id="ex-xls">Excel</button><button class="btn prim" id="ex-pdf">PDF</button>`,

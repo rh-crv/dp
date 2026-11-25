@@ -8,7 +8,7 @@
 const D = window.DP, ENC = window.DP_ENC;
 const { sb, E, CFG, $, $$, esc, normal, brD, hoje, fMat, nomeBonito, iniciais, toast, traduzErro, abrirModal, fecharModal } = D;
 let canais = [], instalarEvt = null;
-const pararCanais = () => { canais.forEach(c => { try { sb.removeChannel(c); } catch(_){} }); canais = []; ENC.parar(); };
+const pararCanais = () => { canais.forEach(c => { try { sb.removeChannel(c); } catch(_){} }); canais = []; ENC.parar(); window.DP_AF && window.DP_AF.parar(); };
 const vigiar = (nome, tabelas, fn) => { try { let c = sb.channel('dp-' + nome); tabelas.forEach(t => c = c.on('postgres_changes', { event:'*', schema:'public', table:t }, fn)); canais.push(c.subscribe()); } catch(_){} };
 
 /* ---------- ícones ---------- */
@@ -34,7 +34,7 @@ const FRENTES = () => {
   return [
     { id:'folha', nome:'Folha e ponto', cor:'#c98a1b', ic:'relogio', itens:[['#/folha/fechamento', 'Fechamento mensal'], ['#/folha/he', 'Horas extras'], ['#/folha/banco', 'Banco de horas'], ['#/folha/adicionais', 'Adicionais'], ...(g ? [] : [['#/folha/eventos', 'Conferência de eventos']]), ...(eq ? [['#/folha/importar', 'Importar planilhas']] : [])] },
     ...(g ? [] : [{ id:'adm', nome:'Admissão e rescisão', cor:'#1f8a8a', ic:'pessoas', itens:[['#/adm/admissoes', 'Admissões'], ['#/adm/rescisoes', 'Rescisões']] }]),
-    { id:'afast', nome:'Afastamentos e INSS', cor:'#c4683a', ic:'saude', itens:[['#/afast/lista', 'Acompanhamento']] },
+    { id:'afast', nome:'Afastamentos e INSS', cor:'#c4683a', ic:'saude', itens:[['#/afast/lista', 'Afastados', g ? [] : [...(eq ? [['#/afast/importar', 'Importar planilha']] : []), ['#/afast/relatorios', 'Documentos/Relatórios']]]] },
     ...(g ? [] : [{ id:'enc', nome:'Encargos e obrigações', cor:'#2e8a57', ic:'recibo', itens:[['#/enc/agenda', 'Agenda do mês'], ['#/enc/prazos', 'Prazos legais'], ['#/enc/feriados', 'Feriados']] }])
   ];
 };
@@ -94,7 +94,13 @@ function moldura(conteudo){
   pararCanais(); fecharModal();
   const p = E.perfil, h = (location.hash || '#/').split('?')[0];
   let abertas = {}; try { abertas = JSON.parse(localStorage.getItem('crv-dp-menu') || '{}'); } catch(_){}
-  const F = FRENTES(); F.forEach(f => { if (f.itens.some(i => i[0] === h)) abertas[f.id] = true; });
+  const F = FRENTES(), naFrente = f => f.itens.some(i => i[0] === h || (i[2] || []).some(s => s[0] === h));
+  F.forEach(f => { if (naFrente(f)) abertas[f.id] = true; });
+  const CHEV2 = CHEV.replace('width="14" height="14"', 'width="13" height="13"');
+  const itemFrente = (f, [ir, n, subs]) => { const bt = `<button class="lat-painel ${h === ir ? 'ativo' : ''}" data-ir="${ir}" style="--cor:${f.cor}"><span class="lat-pn">${esc(n)}</span></button>`;
+    if (!subs || !subs.length) return bt; const ab = h === ir || subs.some(s => s[0] === h);
+    return `<div class="lat-pgrupo ${ab ? 'aberto' : ''}"><div class="lat-plinha">${bt}<button class="lat-pseta" aria-label="Mostrar opções de ${esc(n)}">${CHEV2}</button></div>
+      <div class="lat-psub">${subs.map(([ir2, n2]) => `<button class="lat-acao ${h === ir2 ? 'ativo' : ''}" data-ir="${ir2}" style="--cor:${f.cor}"><i><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="3.5"/></svg></i><span>${esc(n2)}</span></button>`).join('')}</div></div>`; };
   const item = (ir, ic, nome) => `<button class="lat-item ${h === ir ? 'ativo' : ''}" data-ir="${ir}">${svg(ic)}<span>${esc(nome)}</span></button>`;
   $('#app').innerHTML = `<div class="casca">
     <aside class="lateral ${localStorage.getItem('crv-dp-recolhido') ? 'recolhida' : ''}" id="lateral">
@@ -107,8 +113,8 @@ function moldura(conteudo){
         ${item('#/solicitacoes', 'envio', D.ehGestor() ? 'Solicitações ao DP' : 'Solicitações dos gestores')}
         <div class="lat-sec">Frentes</div>
         ${F.map(f => `<div class="lat-grupo ${abertas[f.id] ? 'aberto' : ''}" data-fr="${f.id}">
-          <button class="lat-frente ${f.itens.some(i => i[0] === h) ? 'atual' : ''}" aria-expanded="${abertas[f.id] ? 'true' : 'false'}"><span class="lat-ic" style="background:${f.cor}">${svg(f.ic, '#fff')}</span><span class="lat-nome">${esc(f.nome)}</span><span class="lat-seta">${CHEV}</span></button>
-          <div class="lat-sub">${f.itens.map(([ir, n]) => `<button class="lat-painel ${h === ir ? 'ativo' : ''}" data-ir="${ir}" style="--cor:${f.cor}"><span class="lat-pn">${esc(n)}</span></button>`).join('')}</div></div>`).join('')}
+          <button class="lat-frente ${naFrente(f) ? 'atual' : ''}" aria-expanded="${abertas[f.id] ? 'true' : 'false'}"><span class="lat-ic" style="background:${f.cor}">${svg(f.ic, '#fff')}</span><span class="lat-nome">${esc(f.nome)}</span><span class="lat-seta">${CHEV}</span></button>
+          <div class="lat-sub">${f.itens.map(i => itemFrente(f, i)).join('')}</div></div>`).join('')}
         <div class="lat-sec">Conta</div>
         ${D.ehAdmin() ? item('#/admin', 'engrenagem', 'Administração') : ''}
         ${item('#/conta', 'usuario', 'Minha conta')}
@@ -126,6 +132,7 @@ function moldura(conteudo){
   $$('.lat-frente', lat).forEach(b => b.onclick = () => { const g = b.parentElement, ab = !g.classList.contains('aberto');
     $$('.lat-grupo.aberto', lat).forEach(o => { if (o !== g) o.classList.remove('aberto'); }); g.classList.toggle('aberto', ab); b.setAttribute('aria-expanded', ab);
     const a = {}; $$('.lat-grupo.aberto', lat).forEach(o => a[o.dataset.fr] = true); localStorage.setItem('crv-dp-menu', JSON.stringify(a)); });
+  $$('.lat-pseta', lat).forEach(b => b.onclick = e => { e.stopPropagation(); b.closest('.lat-pgrupo').classList.toggle('aberto'); });
   $('#m-sair').onclick = sair; $('#m-inst').onclick = () => { fechar(); instalar(); };
   return $('#pagina');
 }
@@ -143,6 +150,9 @@ function rota(){
   if (h === '#/enc/agenda' && D.verTudo()) return ENC.agenda(moldura('<div class="spinner"></div>'));
   if (h === '#/enc/prazos' && D.verTudo()) return ENC.telaPrazos(moldura('<div class="spinner"></div>'));
   if (h === '#/enc/feriados' && D.verTudo()) return ENC.telaFeriados(moldura('<div class="spinner"></div>'));
+  if (h === '#/afast/lista') return window.DP_AF.tela(moldura('<div class="spinner"></div>'), qs.get('aba'));
+  if (h === '#/afast/importar' && D.ehEquipe()) return window.DP_AF.telaImportar(moldura(''));
+  if (h === '#/afast/relatorios' && D.verTudo()) return window.DP_AF.telaRelatorios(moldura('<div class="spinner"></div>'));
   if (h === '#/admin' && D.ehAdmin()) return telaAdmin();
   if (h === '#/conta') return telaConta();
   const m = /^#\/(folha|adm|afast)\//.exec(h); if (m) return telaEmBreve(m[1], h);
@@ -176,27 +186,28 @@ async function telaCentral(){
   const pg = moldura('<div class="spinner"></div>');
   const desenhar = async () => {
     if (!document.body.contains(pg)) return;
-    const [enc, { data:sol }, { data:bx }] = await Promise.all([ENC.pendencias(), sb.from('dp_solicitacoes').select('*').in('status', ['enviado', 'em_analise']).order('criado_em'), sb.from('dp_central_baixas').select('origem,ref')]);
+    const [enc, af, { data:sol }, { data:bx }] = await Promise.all([ENC.pendencias(), window.DP_AF.pendencias(), sb.from('dp_solicitacoes').select('*').in('status', ['enviado', 'em_analise']).order('criado_em'), sb.from('dp_central_baixas').select('origem,ref')]);
     const baixado = new Set((bx || []).map(b => b.origem + '|' + b.ref));
     const itens = enc.map(x => Object.assign(x, { ref:x.ref + ':' + x.quando })).filter(x => !baixado.has(x.origem + '|' + x.ref));
+    const itensAf = af.filter(x => !baixado.has(x.origem + '|' + x.ref));
     const sols = (sol || []).map(s => ({ origem:'solic', ref:s.id + ':' + s.status, s, titulo:`${s.tipo} · ${s.colaborador || ''}`, desc:`Mat. ${fMat(s.mat)} · ${s.setor || ''} · enviado por ${s.autor_nome || ''} em ${brD(s.criado_em)}` })).filter(x => !baixado.has(x.origem + '|' + x.ref));
     const G = [['vencido', 'Vencidos', '#d4573f'], ['hoje', 'Vencem hoje', '#e9a23b'], ['semana', 'Próximos 7 dias', '#2e8a57']];
     const pode = D.ehEquipe();
     const bloco = (t, cor, L, sub) => L.length ? `<section class="cent-grupo" style="--cor:${cor}"><header><b>${esc(t)}</b><small>${esc(sub || '')}</small></header>
       ${L.map(x => `<div class="cent-it"><div class="tx" data-ab="${esc(x.origem + '|' + x.ref)}"><b>${esc(x.titulo)}</b><span>${esc(x.desc)}</span></div>${pode ? `<button class="btn peq borda" data-cf="${esc(x.origem + '|' + x.ref)}">Conferido</button>` : ''}</div>`).join('')}</section>` : '';
-    const html = G.map(([k, t, c]) => bloco(t, c, itens.filter(x => x.quando === k), 'Encargos e obrigações')).join('') + bloco('Solicitações dos gestores aguardando o DP', '#1f8a8a', sols, '');
+    const html = G.map(([k, t, c]) => bloco(t, c, itens.filter(x => x.quando === k), 'Encargos e obrigações') + bloco(t, c, itensAf.filter(x => x.quando === k), 'Afastamentos e INSS')).join('') + bloco('Solicitações dos gestores aguardando o DP', '#1f8a8a', sols, '');
     pg.innerHTML = `<div class="pg-cab"><div class="t"><h2>Central do DP</h2><p>Pendências e prazos do dia e da semana. O que for conferido sai daqui.</p></div></div>
       ${html || '<div class="vazio">Nenhuma pendência para hoje e para os próximos 7 dias. 👍</div>'}
-      <p style="color:var(--mut);font-size:12px;margin-top:14px">Afastamentos (Fase 2), Admissão e rescisão (Fase 3) e Folha e ponto (Fase 4) entram aqui quando forem liberados.</p>`;
-    const todos = itens.concat(sols);
+      <p style="color:var(--mut);font-size:12px;margin-top:14px">Admissão e rescisão (Fase 3) e Folha e ponto (Fase 4) entram aqui quando forem liberados.</p>`;
+    const todos = itens.concat(itensAf, sols);
     $$('[data-ab]', pg).forEach(el => el.onclick = () => { const x = todos.find(y => y.origem + '|' + y.ref === el.dataset.ab); if (!x) return;
-      if (x.origem === 'obrig') ENC.editar(x.o, desenhar); else location.hash = '#/solicitacoes?item=' + x.s.id; });
+      if (x.origem === 'obrig') ENC.editar(x.o, desenhar); else if (x.origem === 'afast') window.DP_AF.ficha(x.mat); else location.hash = '#/solicitacoes?item=' + x.s.id; });
     $$('[data-cf]', pg).forEach(b => b.onclick = async () => { const [origem, ref] = b.dataset.cf.split('|'); b.disabled = true;
       const { error } = await sb.from('dp_central_baixas').upsert({ origem, ref, conferido_por:E.perfil.nome }); if (error) { b.disabled = false; return toast(traduzErro(error), true); }
       b.closest('.cent-it').remove(); toast('Conferido. Saiu da Central.'); });
   };
   await desenhar();
-  vigiar('central', ['dp_obrigacoes', 'dp_solicitacoes', 'dp_central_baixas'], desenhar);
+  vigiar('central', ['dp_obrigacoes', 'dp_solicitacoes', 'dp_central_baixas', 'dp_afastamentos'], desenhar);
 }
 
 /* =====================================================================
@@ -316,6 +327,7 @@ async function telaAdmin(){
   $('#ad-alerta', pg).onclick = async () => { const { data:n, error } = await sb.rpc('dp_alertas_prazos'); if (error) return toast(traduzErro(error), true); toast(n ? n + ' alerta(s) enviado(s).' : 'Nenhum prazo novo para avisar hoje.'); };
   $('#cf-ok', pg).onclick = async () => { const rows = ['assinantes', 'cargos_sem_salario', 'tipos_solicitacao'].map(k => ({ chave:k, valor:$('#cf-' + k, pg).value.split('\n').map(x => x.trim()).filter(Boolean), atualizado_por:E.perfil.nome, atualizado_em:new Date().toISOString() }));
     const { error } = await sb.from('dp_config').upsert(rows); if (error) return toast(traduzErro(error), true); await D.carregarConfig(); toast('Configurações salvas.'); };
+  const afx = await window.DP_AF.adminHTML(); if (!document.body.contains(pg)) return; pg.insertAdjacentHTML('beforeend', afx.html); afx.ligar(pg);
 }
 
 /* ---------- Minha conta ---------- */
