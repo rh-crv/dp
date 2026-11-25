@@ -48,7 +48,15 @@ const EM_BREVE = { folha:['Fase 4', 'Fechamento mensal, horas extras, banco de h
    INÍCIO / LOGIN
    ===================================================================== */
 const usuarioParaEmail = u => normal(u).replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '') + '@' + CFG.DOMINIO_LOGIN;
+/* atualização automática: compara a versão deste aparelho com a publicada e, se mudou, limpa a cópia guardada e recarrega */
+async function limparCopia(){ try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch(_){} try { for (const k of await caches.keys()) await caches.delete(k); } catch(_){} }
+async function atualizarAgora(){ await limparCopia(); location.replace(location.pathname + '?v=' + Date.now() + location.hash); }
+async function conferirVersao(){
+  try { if (!navigator.onLine) return; const t = await (await fetch('config.js?t=' + Date.now(), { cache:'no-store' })).text(); const m = /VERSAO:\s*'([\d.]+)'/.exec(t);
+    if (m && m[1] !== CFG.VERSAO) { const k = 'crv-dp-atualizou-' + m[1]; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); await atualizarAgora(); } } catch(_){} }
+window.DP_ATUALIZAR = atualizarAgora;
 async function iniciar(){
+  conferirVersao(); document.addEventListener('visibilitychange', () => { if (!document.hidden) conferirVersao(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalarEvt = e; });
   const { data } = await sb.auth.getSession();
@@ -62,7 +70,9 @@ function telaLogin(msg = ''){
     ${msg ? `<div class="erro">${esc(msg)}</div>` : ''}<div id="msg"></div>
     <div class="campo"><label for="i-u">Usuário</label><input id="i-u" required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
     <div class="campo"><label for="i-s">Senha</label><input id="i-s" type="password" required minlength="6" autocomplete="current-password"></div>
-    <button class="btn prim cheio" id="b-ent" type="submit">Entrar</button></form></div>`;
+    <button class="btn prim cheio" id="b-ent" type="submit">Entrar</button>
+    <p style="text-align:center;margin:14px 0 0;font-size:12px;color:var(--mut)">Versão ${esc(CFG.VERSAO)} · <button type="button" class="link" id="b-atu">atualizar o app</button></p></form></div>`;
+  $('#b-atu').onclick = atualizarAgora;
   $('#f-login').onsubmit = async ev => { ev.preventDefault(); const b = $('#b-ent'); b.disabled = true; b.textContent = 'Aguarde...';
     try { const { data, error } = await sb.auth.signInWithPassword({ email:usuarioParaEmail($('#i-u').value.trim()), password:$('#i-s').value }); if (error) throw error; E.sessao = data.session; entrar(); }
     catch(e){ $('#msg').innerHTML = `<div class="erro">${esc(traduzErro(e))}</div>`; b.disabled = false; b.textContent = 'Entrar'; } };
@@ -348,12 +358,13 @@ function telaConta(){
   const p = E.perfil, pg = moldura(`<div class="pg-cab"><div class="t"><h2>Minha conta</h2></div></div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;max-width:520px">
       <p style="margin:0 0 4px"><b>${esc(nomeBonito(p.nome))}</b></p><p style="margin:0 0 14px;color:var(--mut)">Usuário: ${esc(p.usuario)} · ${esc(D.nivelNome())}</p>
-      <button class="btn borda" id="ct-not">Ativar notificações neste aparelho</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn borda" id="ct-not">Ativar notificações neste aparelho</button><button class="btn borda" id="ct-atu">Atualizar o app agora (v${esc(CFG.VERSAO)})</button></div>
       <h3 style="font-size:14px;margin:18px 0 8px">Trocar senha</h3><p style="color:var(--mut);font-size:12.5px;margin:0 0 8px">É a mesma senha do app Gestão de Pessoas.</p>
       <div class="campo"><label>Nova senha</label><input type="password" id="ct-s1" minlength="6" autocomplete="new-password"></div>
       <div class="campo"><label>Repita a nova senha</label><input type="password" id="ct-s2" minlength="6" autocomplete="new-password"></div>
       <button class="btn prim" id="ct-ok">Trocar senha</button></div>`);
   $('#ct-not', pg).onclick = () => window.CRV_NOTIF && window.CRV_NOTIF.pedir();
+  $('#ct-atu', pg).onclick = atualizarAgora;
   $('#ct-ok', pg).onclick = async () => { const a = $('#ct-s1', pg).value, b = $('#ct-s2', pg).value; if (a.length < 6) return toast('A senha precisa ter pelo menos 6 caracteres.', true); if (a !== b) return toast('As senhas não conferem.', true);
     const { error } = await sb.auth.updateUser({ password:a }); if (error) return toast(traduzErro(error), true); toast('Senha trocada.'); $('#ct-s1', pg).value = $('#ct-s2', pg).value = ''; };
 }
